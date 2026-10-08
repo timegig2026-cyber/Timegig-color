@@ -1,0 +1,8 @@
+{
+  "name": "ActiVeloce Admin & Activation Suite",
+  "description": "Professional Activation and Admin Control Center with wallpaper customization, license management, and system administration.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

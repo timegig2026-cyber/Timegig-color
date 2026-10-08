@@ -21,7 +21,10 @@ import {
   Eye,
   Camera,
   Settings,
+  LogOut,
 } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase';
 
 interface TenantPortalProps {
   userProfilePic?: string;
@@ -81,6 +84,12 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<TenantSection | null>(null);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    localStorage.removeItem('activeloce_registered');
+    window.location.reload();
+  };
 
   // Settings form state
   const [feeTenant, setFeeTenant] = useState(tenantSettings.feeTenant);
@@ -447,6 +456,14 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({
                     )}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full px-3.5 py-2.5 text-left flex items-center gap-2.5 text-rose-600 font-bold hover:bg-rose-50 transition-colors mt-1 border-t border-slate-100"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </button>
               </div>
             </>
           )}
@@ -1890,8 +1907,8 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({
                     <p className="text-xs text-slate-500">{tenant.contact}</p>
                   </div>
                   <div className="flex flex-col gap-2">
-                     <label className="text-[10px] font-bold">Max Tenants: <input type="number" defaultValue={tenant.maxTenants || 0} className="border rounded p-1 w-16" onBlur={(e) => onUpdateMemberQuota(tenant.id, parseInt(e.target.value), tenant.maxUsers || 0)} /></label>
-                     <label className="text-[10px] font-bold">Max Users: <input type="number" defaultValue={tenant.maxUsers || 0} className="border rounded p-1 w-16" onBlur={(e) => onUpdateMemberQuota(tenant.id, tenant.maxTenants || 0, parseInt(e.target.value))} /></label>
+                     <label className="text-[10px] font-bold">Max Tenants: <input type="number" defaultValue={tenant.maxTenants || 0} className="border rounded p-1 w-16" onBlur={(e) => onUpdateMemberQuota(tenant.id, parseInt(e.target.value) || 0, tenant.maxUsers || 0)} /></label>
+                     <label className="text-[10px] font-bold">Max Users: <input type="number" defaultValue={tenant.maxUsers || 0} className="border rounded p-1 w-16" onBlur={(e) => onUpdateMemberQuota(tenant.id, tenant.maxTenants || 0, parseInt(e.target.value) || 0)} /></label>
                   </div>
                 </div>
               ))}

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { NavTab, AdminSection, VerificationSubmission, ProofOfPayment, ManagedMember, TenantSettings } from './types';
+import { RegistrationForm } from './components/RegistrationForm';
 import { BottomNav } from './components/BottomNav';
 import { ActivationOptions } from './components/ActivationOptions';
 import { VerificationFlow } from './components/VerificationFlow';
 import { TenantPortal } from './components/TenantPortal';
 import { UserPortal } from './components/UserPortal';
 import { AdminView } from './components/AdminView';
+import { useAuth } from './context/AuthContext';
 
 const STORAGE_KEY = 'activeloce_verifications_db';
 const ACTIVE_SUB_KEY = 'activeloce_active_sub_id';
@@ -14,134 +16,135 @@ const MANAGED_MEMBERS_KEY = 'activeloce_tenant_managed_members';
 const REFERRAL_POPS_KEY = 'activeloce_referral_pops_db';
 const REFERRAL_VERIFICATIONS_KEY = 'activeloce_referral_verifications_db';
 const TENANT_SETTINGS_KEY = 'activeloce_tenant_settings';
+const ADMIN_EMAIL = 'timegig2026@gmail.com';
 
 export default function App() {
+  const { currentUser } = useAuth();
+  const uid = currentUser?.uid;
+  const isAdmin = currentUser?.email?.trim().toLowerCase() === ADMIN_EMAIL;
   const [activeTab, setActiveTab] = useState<NavTab>('activation');
   const [adminSection, setAdminSection] = useState<AdminSection>('overview');
+  const isRegistered = !!currentUser;
 
-  const [tenantSettings, setTenantSettings] = useState<TenantSettings>(() => {
-    try {
-      const stored = localStorage.getItem(TENANT_SETTINGS_KEY);
-      return stored ? JSON.parse(stored) : { feeTenant: 299.99, feeUser: 29.99, maxTenants: 10, maxUsers: 100 };
-    } catch {
-      return { feeTenant: 299.99, feeUser: 29.99, maxTenants: 10, maxUsers: 100 };
-    }
-  });
-
-  // Sync tenant settings to localStorage
+  // Ensure non-admin users can never access admin tab
   useEffect(() => {
+    if (!isAdmin && activeTab === 'admin') {
+      setActiveTab('activation');
+    }
+  }, [isAdmin, activeTab]);
+
+  const [tenantSettings, setTenantSettings] = useState<TenantSettings>({ feeTenant: 299.99, feeUser: 29.99, maxTenants: 10, maxUsers: 100 });
+  const [verifyingOption, setVerifyingOption] = useState<'tenant' | 'user' | null>(null);
+  const [submissions, setSubmissions] = useState<VerificationSubmission[]>([]);
+  const [popSubmissions, setPopSubmissions] = useState<ProofOfPayment[]>([]);
+  const [currentSessionSubId, setCurrentSessionSubId] = useState<string | null>(null);
+  const [managedMembers, setManagedMembers] = useState<ManagedMember[]>([]);
+  const [referralPOPs, setReferralPOPs] = useState<ProofOfPayment[]>([]);
+  const [referralVerifications, setReferralVerifications] = useState<VerificationSubmission[]>([]);
+
+  // Load state when user UID changes
+  useEffect(() => {
+    if (!uid) {
+      setTenantSettings({ feeTenant: 299.99, feeUser: 29.99, maxTenants: 10, maxUsers: 100 });
+      setSubmissions([]);
+      setPopSubmissions([]);
+      setCurrentSessionSubId(null);
+      setManagedMembers([]);
+      setReferralPOPs([]);
+      setReferralVerifications([]);
+      return;
+    }
+
     try {
-      localStorage.setItem(TENANT_SETTINGS_KEY, JSON.stringify(tenantSettings));
+      const storedSettings = localStorage.getItem(`${TENANT_SETTINGS_KEY}_${uid}`);
+      setTenantSettings(storedSettings ? JSON.parse(storedSettings) : { feeTenant: 299.99, feeUser: 29.99, maxTenants: 10, maxUsers: 100 });
+
+      const storedSubs = localStorage.getItem(`${STORAGE_KEY}_${uid}`);
+      setSubmissions(storedSubs ? JSON.parse(storedSubs) : []);
+
+      const storedPops = localStorage.getItem(`${POP_STORAGE_KEY}_${uid}`);
+      setPopSubmissions(storedPops ? JSON.parse(storedPops) : []);
+
+      const storedActiveSub = localStorage.getItem(`${ACTIVE_SUB_KEY}_${uid}`);
+      setCurrentSessionSubId(storedActiveSub || null);
+
+      const storedMembers = localStorage.getItem(`${MANAGED_MEMBERS_KEY}_${uid}`);
+      setManagedMembers(storedMembers ? JSON.parse(storedMembers) : []);
+
+      const storedRefPops = localStorage.getItem(`${REFERRAL_POPS_KEY}_${uid}`);
+      setReferralPOPs(storedRefPops ? JSON.parse(storedRefPops) : []);
+
+      const storedRefVers = localStorage.getItem(`${REFERRAL_VERIFICATIONS_KEY}_${uid}`);
+      setReferralVerifications(storedRefVers ? JSON.parse(storedRefVers) : []);
+    } catch {
+      setTenantSettings({ feeTenant: 299.99, feeUser: 29.99, maxTenants: 10, maxUsers: 100 });
+      setSubmissions([]);
+      setPopSubmissions([]);
+      setCurrentSessionSubId(null);
+      setManagedMembers([]);
+      setReferralPOPs([]);
+      setReferralVerifications([]);
+    }
+  }, [uid]);
+
+  // Sync state to UID-scoped localStorage
+  useEffect(() => {
+    if (!uid) return;
+    try {
+      localStorage.setItem(`${TENANT_SETTINGS_KEY}_${uid}`, JSON.stringify(tenantSettings));
     } catch {}
-  }, [tenantSettings]);
+  }, [tenantSettings, uid]);
 
   // Handle updating tenant settings (Fees & Quotas)
   const handleUpdateTenantSettings = (newSettings: TenantSettings) => {
     setTenantSettings(newSettings);
   };
 
-  // Currently chosen activation plan
-  const [verifyingOption, setVerifyingOption] = useState<'tenant' | 'user' | null>(null);
-
-  // Submissions list received by Admin in Verification feature
-  const [submissions, setSubmissions] = useState<VerificationSubmission[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Proof of Payment submissions list received by Admin in Tenant PoP / User PoP
-  const [popSubmissions, setPopSubmissions] = useState<ProofOfPayment[]>(() => {
-    try {
-      const stored = localStorage.getItem(POP_STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // ID of the submission currently tied to the active user's session
-  const [currentSessionSubId, setCurrentSessionSubId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(ACTIVE_SUB_KEY) || null;
-    } catch {
-      return null;
-    }
-  });
-
-  // Members who signed up through the tenant's social media referral link
-  const [managedMembers, setManagedMembers] = useState<ManagedMember[]>(() => {
-    try {
-      const stored = localStorage.getItem(MANAGED_MEMBERS_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Proof of Payment submissions received by Tenant from their referrals
-  const [referralPOPs, setReferralPOPs] = useState<ProofOfPayment[]>(() => {
-    try {
-      const stored = localStorage.getItem(REFERRAL_POPS_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Verification submissions received by Tenant from their referrals
-  const [referralVerifications, setReferralVerifications] = useState<VerificationSubmission[]>(() => {
-    try {
-      const stored = localStorage.getItem(REFERRAL_VERIFICATIONS_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Sync state to localStorage
   useEffect(() => {
+    if (!uid) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(submissions));
+      localStorage.setItem(`${STORAGE_KEY}_${uid}`, JSON.stringify(submissions));
     } catch {}
-  }, [submissions]);
+  }, [submissions, uid]);
 
   useEffect(() => {
+    if (!uid) return;
     try {
-      localStorage.setItem(POP_STORAGE_KEY, JSON.stringify(popSubmissions));
+      localStorage.setItem(`${POP_STORAGE_KEY}_${uid}`, JSON.stringify(popSubmissions));
     } catch {}
-  }, [popSubmissions]);
+  }, [popSubmissions, uid]);
 
   useEffect(() => {
+    if (!uid) return;
     try {
       if (currentSessionSubId) {
-        localStorage.setItem(ACTIVE_SUB_KEY, currentSessionSubId);
+        localStorage.setItem(`${ACTIVE_SUB_KEY}_${uid}`, currentSessionSubId);
       } else {
-        localStorage.removeItem(ACTIVE_SUB_KEY);
+        localStorage.removeItem(`${ACTIVE_SUB_KEY}_${uid}`);
       }
     } catch {}
-  }, [currentSessionSubId]);
+  }, [currentSessionSubId, uid]);
 
   useEffect(() => {
+    if (!uid) return;
     try {
-      localStorage.setItem(MANAGED_MEMBERS_KEY, JSON.stringify(managedMembers));
+      localStorage.setItem(`${MANAGED_MEMBERS_KEY}_${uid}`, JSON.stringify(managedMembers));
     } catch {}
-  }, [managedMembers]);
+  }, [managedMembers, uid]);
 
   useEffect(() => {
+    if (!uid) return;
     try {
-      localStorage.setItem(REFERRAL_POPS_KEY, JSON.stringify(referralPOPs));
+      localStorage.setItem(`${REFERRAL_POPS_KEY}_${uid}`, JSON.stringify(referralPOPs));
     } catch {}
-  }, [referralPOPs]);
+  }, [referralPOPs, uid]);
 
   useEffect(() => {
+    if (!uid) return;
     try {
-      localStorage.setItem(REFERRAL_VERIFICATIONS_KEY, JSON.stringify(referralVerifications));
+      localStorage.setItem(`${REFERRAL_VERIFICATIONS_KEY}_${uid}`, JSON.stringify(referralVerifications));
     } catch {}
-  }, [referralVerifications]);
+  }, [referralVerifications, uid]);
 
   // Find active submission for the current user's session
   const activeSubmission = currentSessionSubId
@@ -265,9 +268,12 @@ export default function App() {
     popDocName: string;
     popDocSize: string;
     popDocUrl: string;
+    referralCode?: string;
   }): boolean => {
     const currentTenants = managedMembers.filter((m) => m.type === 'tenant').length;
     const currentUsers = managedMembers.filter((m) => m.type === 'user').length;
+    
+    const referralCode = data.referralCode || 'TENANT29';
 
     if (data.type === 'tenant' && currentTenants >= tenantSettings.maxTenants) {
       return false;
@@ -331,7 +337,7 @@ export default function App() {
       }),
       status: 'active',
       monthlyFee: data.type === 'tenant' ? `R${tenantSettings.feeTenant.toFixed(2).replace('.', ',')}` : `R${tenantSettings.feeUser.toFixed(2).replace('.', ',')}`,
-      referralCode: 'TENANT29',
+      referralCode: referralCode,
       selfieUrl: data.selfieUrl,
       idDocName: data.idDocName,
       idDocSize: data.idDocSize,
@@ -473,17 +479,19 @@ export default function App() {
       {/* Main View Area */}
       <main className="flex-1 w-full h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden bg-white">
         {activeTab === 'activation' && (
-          isApproved ? (
+          !isRegistered ? (
+             <RegistrationForm onAuthSuccess={() => {}} />
+          ) : isApproved ? (
             /* IF APPROVED: Activation feature changes to TenantPortal or UserPortal */
             approvedPlan === 'tenant' ? (
               <TenantPortal
                 userProfilePic={activeSubmission?.selfieUrl}
                 onUploadPOP={handleUploadPOP}
                 tenantPOP={tenantPOP}
-                onNavigateToAdmin={() => {
+                onNavigateToAdmin={isAdmin ? () => {
                   setActiveTab('admin');
                   setAdminSection('tenant-pop');
-                }}
+                } : undefined}
                 managedMembers={managedMembers}
                 onAddReferral={handleAddReferral}
                 onToggleMemberStatus={handleToggleMemberStatus}
@@ -503,10 +511,10 @@ export default function App() {
                 onReset={handleResetActivation}
                 onUploadPOP={handleUploadPOP}
                 userPOP={userPOP}
-                onNavigateToAdmin={() => {
+                onNavigateToAdmin={isAdmin ? () => {
                   setActiveTab('admin');
                   setAdminSection('user-pop');
-                }}
+                } : undefined}
               />
             )
           ) : verifyingOption ? (
@@ -519,10 +527,10 @@ export default function App() {
               }}
               onSubmitVerification={handleSubmitVerification}
               status={activeSubmission?.status || null}
-              onNavigateToAdmin={() => {
+              onNavigateToAdmin={isAdmin ? () => {
                 setActiveTab('admin');
                 setAdminSection('verification');
-              }}
+              } : undefined}
             />
           ) : (
             /* INITIAL: 2 Purchase Options (Become a Tenant & User Subscription) */
@@ -534,7 +542,7 @@ export default function App() {
           )
         )}
 
-        {activeTab === 'admin' && (
+        {activeTab === 'admin' && isAdmin && (
           /* ADMIN VIEW: Overview, Verification, Tenant PoP, User PoP */
           <AdminView
             submissions={submissions}
@@ -559,6 +567,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         activationLabel={activationLabel}
         approvedPlan={approvedPlan}
+        isAdmin={isAdmin}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 export type NavTab = 'activation' | 'admin';
 
-export type AdminSection = 'overview' | 'verification' | 'tenant-pop' | 'user-pop' | 'settings';
+export type AdminSection = 'overview' | 'verification' | 'tenant-pop' | 'user-pop' | 'settings' | 'referral';
 
 export type TenantSection = 'overview' | 'verification' | 'tenant-pop' | 'user-pop' | 'bank-transfer' | 'settings';
 

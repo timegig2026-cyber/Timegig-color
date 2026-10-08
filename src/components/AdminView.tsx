@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { VerificationSubmission, AdminSection, ProofOfPayment, ManagedMember, TenantSettings } from '../types';
-import { Menu, LayoutDashboard, ShieldCheck, Building2, Users, Check, X, Eye, FileText, Server, DollarSign, Landmark, CheckCircle2, Clock, Settings } from 'lucide-react';
+import { Menu, LayoutDashboard, ShieldCheck, Building2, Users, Check, X, Eye, FileText, Server, DollarSign, Landmark, CheckCircle2, Clock, Settings, LogOut, Share2 } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase';
 
 interface AdminViewProps {
   submissions: VerificationSubmission[];
@@ -36,6 +38,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [viewingPOP, setViewingPOP] = useState<ProofOfPayment | null>(null);
   const [viewingTenants, setViewingTenants] = useState(false);
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    localStorage.removeItem('activeloce_registered');
+    window.location.reload();
+  };
+
   // Settings form state
   const [feeTenant, setFeeTenant] = useState(tenantSettings.feeTenant);
   const [feeUser, setFeeUser] = useState(tenantSettings.feeUser);
@@ -52,6 +60,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     { id: 'tenant-pop' as AdminSection, label: 'Tenant PoP', icon: <Building2 className="w-4 h-4" />, badge: pendingTenantPOPCount > 0 ? pendingTenantPOPCount : undefined },
     { id: 'user-pop' as AdminSection, label: 'User PoP', icon: <Users className="w-4 h-4" />, badge: pendingUserPOPCount > 0 ? pendingUserPOPCount : undefined },
     { id: 'settings' as AdminSection, label: 'Settings', icon: <Settings className="w-4 h-4" /> },
+    { id: 'referral' as AdminSection, label: 'Referral', icon: <Share2 className="w-4 h-4" /> },
   ];
 
   const handleUpdateSettings = (e: React.FormEvent) => {
@@ -136,6 +145,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       )}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-rose-50 text-rose-600 font-bold mt-1 border-t border-slate-100"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </button>
                 </div>
               </>
             )}
@@ -259,6 +276,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </button>
               </div>
             )}
+            
+            {/* Admin Referral Link & Management */}
+            {/* REMOVED: Referral section moved to its own tab */}
           </div>
         )}
 
@@ -662,6 +682,46 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </form>
           </div>
         )}
+
+        {/* SECTION 6: REFERRAL */}
+        {currentSection === 'referral' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <h2 className="text-lg font-bold text-black tracking-tight">Referral Management</h2>
+            <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-lg">
+              <h3 className="text-sm font-bold mb-2">Admin Referral Link</h3>
+              <p className="text-xs text-slate-300 mb-4">Share this link to invite users/tenants directly. They will be added to your managed list.</p>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={`${window.location.origin}/register?referral=ADMIN29`} 
+                  className="bg-slate-800 text-slate-300 text-xs p-2 rounded-lg w-full"
+                />
+                <button 
+                  onClick={() => navigator.clipboard.writeText(`${window.location.origin}/register?referral=ADMIN29`)}
+                  className="bg-white text-black text-xs font-bold px-3 py-2 rounded-lg"
+                >
+                  Copy
+                </button>
+              </div>
+              
+              <div className="mt-6">
+                <h4 className="text-xs font-bold mb-3 uppercase tracking-wider text-slate-400">Referrals Joined via Admin Link</h4>
+                <div className="space-y-2">
+                  {(managedMembers || []).filter(m => m.referralCode === 'ADMIN29').map(m => (
+                    <div key={m.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-lg text-xs">
+                      <span>{m.name} ({m.type})</span>
+                      <span className="text-slate-400">{m.joinedAt}</span>
+                    </div>
+                  ))}
+                  {(managedMembers || []).filter(m => m.referralCode === 'ADMIN29').length === 0 && (
+                    <p className="text-xs text-slate-500 italic">No referrals yet.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal to View Verification ID and Selfie */}
@@ -840,8 +900,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <p className="text-xs text-slate-500">{tenant.contact}</p>
                     </div>
                     <div className="flex flex-col gap-2">
-                       <label className="text-[10px] font-bold">Max Tenants: <input type="number" defaultValue={tenant.maxTenants || 0} className="border rounded p-1 w-16" onBlur={(e) => onUpdateMemberQuota(tenant.id, parseInt(e.target.value), tenant.maxUsers || 0)} /></label>
-                       <label className="text-[10px] font-bold">Max Users: <input type="number" defaultValue={tenant.maxUsers || 0} className="border rounded p-1 w-16" onBlur={(e) => onUpdateMemberQuota(tenant.id, tenant.maxTenants || 0, parseInt(e.target.value))} /></label>
+                       <label className="text-[10px] font-bold">Max Tenants: <input type="number" defaultValue={tenant.maxTenants || 0} className="border rounded p-1 w-16" onBlur={(e) => onUpdateMemberQuota(tenant.id, parseInt(e.target.value) || 0, tenant.maxUsers || 0)} /></label>
+                       <label className="text-[10px] font-bold">Max Users: <input type="number" defaultValue={tenant.maxUsers || 0} className="border rounded p-1 w-16" onBlur={(e) => onUpdateMemberQuota(tenant.id, tenant.maxTenants || 0, parseInt(e.target.value) || 0)} /></label>
                     </div>
                   </div>
                 ))}
